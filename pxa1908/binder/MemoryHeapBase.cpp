@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "MemoryHeapBase"
+#define LOG_TAG "MemoryHeapBase_Marvell"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -29,21 +29,27 @@
 #include <cutils/ashmem.h>
 #include <cutils/atomic.h>
 
-#include <binder/MemoryHeapBase.h>
+#include "include/MemoryHeapBase.h"
+
+#include <linux/ion.h>
+#include <mvmem.h>
 
 namespace android {
 
 // ---------------------------------------------------------------------------
 
+
 MemoryHeapBase::MemoryHeapBase()
     : mFD(-1), mSize(0), mBase(MAP_FAILED),
       mDevice(NULL), mNeedUnmap(false), mOffset(0)
+      ,mFD2(-1)
 {
 }
 
 MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
       mDevice(0), mNeedUnmap(false), mOffset(0)
+      ,mFD2(-1)
 {
     const size_t pagesize = getpagesize();
     size = ((size + pagesize-1) & ~(pagesize-1));
@@ -61,6 +67,7 @@ MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
 MemoryHeapBase::MemoryHeapBase(const char* device, size_t size, uint32_t flags)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
       mDevice(0), mNeedUnmap(false), mOffset(0)
+      ,mFD2(-1)
 {
     int open_flags = O_RDWR;
     if (flags & NO_CACHING)
@@ -71,19 +78,22 @@ MemoryHeapBase::MemoryHeapBase(const char* device, size_t size, uint32_t flags)
     if (fd >= 0) {
         const size_t pagesize = getpagesize();
         size = ((size + pagesize-1) & ~(pagesize-1));
-        if (mapfd(fd, size) == NO_ERROR) {
+        if (mapion(fd, size) == NO_ERROR) {
             mDevice = device;
         }
+        else
+            ALOGE("mapion failed");
     }
 }
 
 MemoryHeapBase::MemoryHeapBase(int fd, size_t size, uint32_t flags, uint32_t offset)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
       mDevice(0), mNeedUnmap(false), mOffset(0)
+      ,mFD2(-1)
 {
     const size_t pagesize = getpagesize();
     size = ((size + pagesize-1) & ~(pagesize-1));
-    mapfd(dup(fd), size, offset);
+    mapion(dup(fd), size, offset);
 }
 
 status_t MemoryHeapBase::init(int fd, void *base, int size, int flags, const char* device)
@@ -97,6 +107,57 @@ status_t MemoryHeapBase::init(int fd, void *base, int size, int flags, const cha
     mFlags = flags;
     mDevice = device;
     return NO_ERROR;
+}
+
+status_t MemoryHeapBase::mapion(int fd, size_t size, uint32_t offset)
+{
+    int flags = 0;
+
+    if( size == 0 )
+    {
+        ALOGE("error: mapion size = 0");
+        return -EINVAL;
+    }
+
+    if( mFlags & DONT_MAP_LOCALLY )
+    {
+        mBase = 0;
+        mNeedUnmap = false;
+        mFD = -1;
+        mFD2 = fd;
+        mSize = size;
+        mOffset = offset;
+        return 0;
+    }
+
+    if( !(mFlags & NO_CACHING) )
+        flags = 0x30000;
+
+    if( mFlags & 0x400 )
+        flags |= 2;
+    else
+        flags |= 1;
+
+    int handlefd = mvmem_alloc(size, flags, 4096);
+    if( handlefd >= 0 )
+    {
+        mvmem_set_name(handlefd, "binder");
+        void *base = mvmem_mmap(handlefd, size, offset);
+        if( base == (void*)-1 )
+        {
+            close(fd);
+            return -errno;
+        }
+        mBase = base;
+        mNeedUnmap = true;
+        mFD = handlefd;
+        mFD2 = fd;
+        mSize = size;
+        mOffset = offset;
+        return 0;
+    }
+    close(fd);
+    return -errno;
 }
 
 status_t MemoryHeapBase::mapfd(int fd, size_t size, uint32_t offset)
@@ -140,13 +201,19 @@ void MemoryHeapBase::dispose()
 {
     int fd = android_atomic_or(-1, &mFD);
     if (fd >= 0) {
-        if (mNeedUnmap) {
-            //ALOGD("munmap(fd=%d, base=%p, size=%lu)", fd, mBase, mSize);
-            munmap(mBase, mSize);
+        if( mBase )
+        {
+            if (mNeedUnmap) {
+                //ALOGD("munmap(fd=%d, base=%p, size=%lu)", fd, mBase, mSize);
+                mvmem_munmap(mBase, mSize);
+            }
         }
+        mvmem_free(fd);
+        close(mFD2);
+        mFD = -1;
+        mFD2 = -1;
         mBase = 0;
         mSize = 0;
-        close(fd);
     }
 }
 

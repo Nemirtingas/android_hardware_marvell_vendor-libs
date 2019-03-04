@@ -95,6 +95,15 @@ private:
     const char* mDevice;
     bool        mNeedUnmap;
     uint32_t    mOffset;
+
+public:
+    enum
+    {
+        PHYSICALLY_CONTIGUOUS = 0x00000400
+    };
+private:
+    status_t mapion(int fd, size_t size, uint32_t offset = 0);
+    int mFD2;
 };
 
 // ---------------------------------------------------------------------------
