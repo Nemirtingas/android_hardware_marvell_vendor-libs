@@ -91,8 +91,6 @@ private:
             size_t              mExecutingThreadsCount;
             // Maximum number for binder threads allowed for this process.
             size_t              mMaxThreads;
-            // Time when thread pool was emptied
-            int64_t             mStarvationStartTimeMs;
 
     mutable Mutex               mLock;  // protects everything below.
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "MemoryHeapBase_Marvell"
+#define LOG_TAG "MemoryHeapBase"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -31,25 +31,21 @@
 
 #include "include/MemoryHeapBase.h"
 
-#include <linux/ion.h>
 #include <mvmem.h>
 
 namespace android {
 
 // ---------------------------------------------------------------------------
 
-
 MemoryHeapBase::MemoryHeapBase()
     : mFD(-1), mSize(0), mBase(MAP_FAILED),
-      mDevice(NULL), mNeedUnmap(false), mOffset(0)
-      ,mFD2(-1)
+      mDevice(NULL), mNeedUnmap(false), mOffset(0), mFD2(-1)
 {
 }
 
 MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
-      mDevice(0), mNeedUnmap(false), mOffset(0)
-      ,mFD2(-1)
+      mDevice(0), mNeedUnmap(false), mOffset(0), mFD2(-1)
 {
     const size_t pagesize = getpagesize();
     size = ((size + pagesize-1) & ~(pagesize-1));
@@ -66,8 +62,7 @@ MemoryHeapBase::MemoryHeapBase(size_t size, uint32_t flags, char const * name)
 
 MemoryHeapBase::MemoryHeapBase(const char* device, size_t size, uint32_t flags)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
-      mDevice(0), mNeedUnmap(false), mOffset(0)
-      ,mFD2(-1)
+      mDevice(0), mNeedUnmap(false), mOffset(0), mFD2(-1)
 {
     int open_flags = O_RDWR;
     if (flags & NO_CACHING)
@@ -88,8 +83,7 @@ MemoryHeapBase::MemoryHeapBase(const char* device, size_t size, uint32_t flags)
 
 MemoryHeapBase::MemoryHeapBase(int fd, size_t size, uint32_t flags, uint32_t offset)
     : mFD(-1), mSize(0), mBase(MAP_FAILED), mFlags(flags),
-      mDevice(0), mNeedUnmap(false), mOffset(0)
-      ,mFD2(-1)
+      mDevice(0), mNeedUnmap(false), mOffset(0), mFD2(-1)
 {
     const size_t pagesize = getpagesize();
     size = ((size + pagesize-1) & ~(pagesize-1));
@@ -210,8 +204,8 @@ void MemoryHeapBase::dispose()
         }
         mvmem_free(fd);
         close(mFD2);
-        mFD = -1;
-        mFD2 = -1;
+        mFD=-1;
+        mFD2=-1;
         mBase = 0;
         mSize = 0;
     }

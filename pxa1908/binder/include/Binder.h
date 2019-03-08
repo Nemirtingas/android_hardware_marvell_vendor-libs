@@ -17,7 +17,7 @@
 #ifndef ANDROID_BINDER_H
 #define ANDROID_BINDER_H
 
-#include <atomic>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <binder/IBinder.h>
 
@@ -71,7 +71,7 @@ private:
 
     class Extras;
 
-    std::atomic<Extras*> mExtras;
+    atomic_uintptr_t    mExtras;  // should be atomic<Extras *>
             void*       mReserved0;
 };
 
@@ -95,7 +95,7 @@ private:
 
     IBinder* const          mRemote;
     RefBase::weakref_type*  mRefs;
-    std::atomic<int32_t>    mState;
+    volatile int32_t        mState;
 };
 
 }; // namespace android
