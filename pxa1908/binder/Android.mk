@@ -61,7 +61,7 @@ endif
 LOCAL_C_INCLUDES += hardware/$(SLSI_DIR)/$(PLATFORM_DIR)/include
 endif
 
-LOCAL_MODULE := vndbinder
+LOCAL_MODULE := libvndbnd
 LOCAL_SHARED_LIBRARIES += liblog libcutils libutils libmvmem
 LOCAL_SRC_FILES := $(sources)
 ifneq ($(TARGET_USES_64_BIT_BINDER),true)
