@@ -51,6 +51,7 @@ struct echo_reference_itfe {
     int (*write)(struct echo_reference_itfe *echo_reference, struct echo_reference_buffer *buffer);
 };
 
+/*
 int create_echo_reference(audio_format_t rdFormat,
                           uint32_t rdChannelCount,
                           uint32_t rdSamplingRate,
@@ -58,6 +59,15 @@ int create_echo_reference(audio_format_t rdFormat,
                           uint32_t wrChannelCount,
                           uint32_t wrSamplingRate,
                           struct echo_reference_itfe **);
+*/
+int create_echo_reference(uint64_t rdFormat,
+                            uint32_t rdChannelCount,
+                            uint32_t rdSamplingRate,
+                            uint64_t wrFormat,
+                            uint32_t wrChannelCount,
+                            uint32_t wrSamplingRate,
+                            uint32_t wrMaxFrameCount,
+                            struct echo_reference_itfe **echo_reference);
 
 void release_echo_reference(struct echo_reference_itfe *echo_reference);
 

@@ -34,36 +34,40 @@ enum state {
     ECHOREF_WRITING = 0x02      // writing is active
 };
 
-struct echo_reference {
-    struct echo_reference_itfe itfe;
-    int status;                     // init status
-    uint32_t state;                 // active state: reading, writing or both
-    audio_format_t rd_format;       // read sample format
-    uint32_t rd_channel_count;      // read number of channels
-    uint32_t rd_sampling_rate;      // read sampling rate in Hz
-    size_t rd_frame_size;           // read frame size (bytes per sample)
-    audio_format_t wr_format;       // write sample format
-    uint32_t wr_channel_count;      // write number of channels
-    uint32_t wr_sampling_rate;      // write sampling rate in Hz
-    size_t wr_frame_size;           // write frame size (bytes per sample)
-    void *buffer;                   // main buffer
-    size_t buf_size;                // main buffer size in frames
-    size_t frames_in;               // number of frames in main buffer
-    void *wr_buf;                   // buffer for input conversions
-    size_t wr_buf_size;             // size of conversion buffer in frames
-    size_t wr_frames_in;            // number of frames in conversion buffer
-    size_t wr_curr_frame_size;      // number of frames given to current write() function
-    void *wr_src_buf;               // resampler input buf (either wr_buf or buffer used by write())
-    struct timespec wr_render_time; // latest render time indicated by write()
-                                    // default ALSA gettimeofday() format
-    int32_t  playback_delay;        // playback buffer delay indicated by last write()
-    int16_t prev_delta_sign;        // sign of previous delay difference:
-                                    //  1: positive, -1: negative, 0: unknown
-    uint16_t delta_count;           // number of consecutive delay differences with same sign
-    pthread_mutex_t lock;                      // mutex protecting read/write concurrency
-    pthread_cond_t cond;                       // condition signaled when data is ready to read
-    struct resampler_itfe *resampler;          // input resampler
-    struct resampler_buffer_provider provider; // resampler buffer provider
+struct echo_reference
+{
+  struct echo_reference_itfe itfe;
+  int      status;
+  uint32_t state;
+  int64_t  rd_format;
+  uint32_t rd_channel_count;
+  uint32_t rd_sampling_rate;
+  size_t   rd_frame_size;
+  uint32_t rd_max_frame_count;
+  int64_t  wr_format;
+  uint32_t wr_channel_count;
+  uint32_t wr_sampling_rate;
+  size_t   wr_frame_size;
+  int32_t  wr_max_frame_count;
+  void    *buffer;
+  size_t   buf_size;
+  size_t   frames_in;
+  void    *wr_buf;
+  size_t   wr_buf_size;
+  size_t   wr_frames_in;
+  size_t   wr_curr_frame_size;
+  void    *wr_src_buf;
+  struct timespec wr_render_time;
+
+  int32_t playback_delay;
+  int16_t prev_delta_sign;
+
+  uint16_t delta_count;
+  pthread_mutex_t lock;
+  pthread_cond_t cond;
+  struct resampler_itfe *resampler;
+  struct resampler_buffer_provider provider;
+  int field_84;
 };
 
 
@@ -142,7 +146,7 @@ static int echo_reference_write(struct echo_reference_itfe *echo_reference,
 
     pthread_mutex_lock(&er->lock);
 
-    if (buffer == NULL) {
+    if (buffer == NULL && er->frames_in < er->wr_max_frame_count) {
         ALOGV("echo_reference_write() stop write");
         er->state &= ~ECHOREF_WRITING;
         echo_reference_reset_l(er);
@@ -488,12 +492,13 @@ exit:
 }
 
 
-int create_echo_reference(audio_format_t rdFormat,
+int create_echo_reference(uint64_t rdFormat,
                             uint32_t rdChannelCount,
                             uint32_t rdSamplingRate,
-                            audio_format_t wrFormat,
+                            uint64_t wrFormat,
                             uint32_t wrChannelCount,
                             uint32_t wrSamplingRate,
+                            uint32_t wrMaxFrameCount,
                             struct echo_reference_itfe **echo_reference)
 {
     struct echo_reference *er;
@@ -511,13 +516,13 @@ int create_echo_reference(audio_format_t rdFormat,
         ALOGW("create_echo_reference bad format rd %d, wr %d", rdFormat, wrFormat);
         return -EINVAL;
     }
+
     if ((rdChannelCount != 1 && rdChannelCount != 2) ||
             wrChannelCount != 2) {
         ALOGW("create_echo_reference bad channel count rd %d, wr %d", rdChannelCount,
                 wrChannelCount);
         return -EINVAL;
     }
-
     er = (struct echo_reference *)calloc(1, sizeof(struct echo_reference));
 
     er->itfe.read = echo_reference_read;
@@ -532,7 +537,11 @@ int create_echo_reference(audio_format_t rdFormat,
     er->wr_sampling_rate = wrSamplingRate;
     er->rd_frame_size = audio_bytes_per_sample(rdFormat) * rdChannelCount;
     er->wr_frame_size = audio_bytes_per_sample(wrFormat) * wrChannelCount;
+
+    er->wr_max_frame_count = wrMaxFrameCount;
+
     *echo_reference = &er->itfe;
+
     return 0;
 }
 
